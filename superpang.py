@@ -64,74 +64,92 @@ FIRING = False
 FIRE_RATE = 30 # frames between shots
 frames_since_shot = 0
 
-while True:
-    frames_since_shot += 1 
-    for event in pygame.event.get():              
-        if event.type == pl.QUIT:
-            pygame.quit()
-            sys.exit()
-        elif event.type == pl.MOUSEBUTTONDOWN:
-            FIRING = True
-            # shoot straight away
-            frames_since_shot = FIRE_RATE + 1
-        elif event.type == pl.MOUSEBUTTONUP:
-            FIRING = False
-            frames_since_shot = 0
-        elif event.type == ADD_BALLOON_EVENT:
-            b = fresh_balloon()
-            balloons.add(b)
-            all_sprites.add(b)
-            pass
-     
+my_font = pygame.font.SysFont('Comic Sans MS', 30)
+
+level_text_pos = (10, STAGE_HEIGHT+10)
+balloon_count_text_pos = (SCREEN_WIDTH-100, STAGE_HEIGHT+10)
+
+def play_game():
+    """Play the game."""
     DISPLAYSURF.fill(WHITE)
-    #print(f"time since last arrow: {time_since_last_arrow}. FIRING: {FIRING}")
-    if FIRING and frames_since_shot > FIRE_RATE:
-        a_x = p.rect.centerx
-        a_y = SCREEN_HEIGHT - 100
-        a = Arrow(initial_x=a_x, initial_y=a_y, speed=INITIAL_SPEED_Y)
-        arrows.add(a)
-        all_sprites.add(a)
-        frames_since_shot = 0
+    balloon_count = 1
+    level = 1 # A level lasts for ten balloons
+    balloon_count_text = my_font.render(f"Balloons: {balloon_count}", False, (0, 0, 200))
+    level_text = my_font.render(f"Level: {level}", False, (0, 0, 200))
+    while True:
+        frames_since_shot += 1 
+        for event in pygame.event.get():              
+            if event.type == pl.QUIT:
+                pygame.quit()
+                sys.exit()
+            elif event.type == pl.MOUSEBUTTONDOWN:
+                FIRING = True
+                # shoot straight away
+                frames_since_shot = FIRE_RATE + 1
+            elif event.type == pl.MOUSEBUTTONUP:
+                FIRING = False
+                frames_since_shot = 0
+            elif event.type == ADD_BALLOON_EVENT:
+                b = fresh_balloon()
+                balloons.add(b)
+                all_sprites.add(b)
+                balloon_count += 1
+                balloon_count_text = my_font.render(f"Balloons: {balloon_count}", False, (0, 0, 0))
+                if balloon_count % 10 == 0:
+                    level = balloon_count / 10
+                    level_text = my_font.render(f"Level: {level}", False, (0, 0, 0))
+     
+        if FIRING and frames_since_shot > FIRE_RATE:
+            a_x = p.rect.centerx
+            a_y = SCREEN_HEIGHT - 100
+            a = Arrow(initial_x=a_x, initial_y=a_y, speed=INITIAL_SPEED_Y)
+            arrows.add(a)
+            all_sprites.add(a)
+            frames_since_shot = 0
 
-    # Move and redraw all sprites
-    for entity in all_sprites:
-        DISPLAYSURF.blit(entity.image, entity.rect)
-        entity.move()
-
-    # collision detection
-    if pygame.sprite.spritecollideany(p, balloons):
-        DISPLAYSURF.fill(RED)
-        pygame.display.update()
+        # Move and redraw all sprites
         for entity in all_sprites:
-            entity.kill()
-        time.sleep(2)
-        pygame.quit()
-        sys.exit()
-    for b in balloons:
-        hit_list = pygame.sprite.spritecollide(b, arrows, dokill=True)
-        if len(hit_list) > 0:
-            if b.size > 1:
-                vy = -INITIAL_SPEED_Y / 2
-                size = b.size-1
-                initial_x,initial_y = b.rect.centerx, b.rect.centery
-                c1 = Balloon(size=size,
-                             initial_x=b.rect.left,
-                             initial_y=initial_y,
-                             x_dir=-1,
-                             vy=vy,
-                             bounds=BALLOON_BOUNDS)
-                c2 = Balloon(size=size,
-                             initial_x=b.rect.right,
-                             initial_y=initial_y,
-                             x_dir=1,
-                             vy=vy,
-                             bounds=BALLOON_BOUNDS)
-                balloons.add(c1)
-                balloons.add(c2)
-                all_sprites.add(c1)
-                all_sprites.add(c2)
-            b.kill()
+            DISPLAYSURF.blit(entity.image, entity.rect)
+            entity.move()
+
+        # collision detection
+        if pygame.sprite.spritecollideany(p, balloons):
+            DISPLAYSURF.fill(RED)
+            pygame.display.update()
+            for entity in all_sprites:
+                entity.kill()
+                time.sleep(2)
+                pygame.quit()
+                sys.exit()
+        for b in balloons:
+            hit_list = pygame.sprite.spritecollide(b, arrows, dokill=True)
+            if len(hit_list) > 0:
+                if b.size > 1:
+                    vy = -INITIAL_SPEED_Y / 2
+                    size = b.size-1
+                    initial_y = b.rect.centery
+                    c1 = Balloon(size=size,
+                                 initial_x=b.rect.left,
+                                 initial_y=initial_y,
+                                 x_dir=-1,
+                                 vy=vy,
+                                 bounds=BALLOON_BOUNDS)
+                    c2 = Balloon(size=size,
+                                 initial_x=b.rect.right,
+                                 initial_y=initial_y,
+                                 x_dir=1,
+                                 vy=vy,
+                                 bounds=BALLOON_BOUNDS)
+                    balloons.add(c1)
+                    balloons.add(c2)
+                    all_sprites.add(c1)
+                    all_sprites.add(c2)
+                b.kill()
+        DISPLAYSURF.blit(level_text, level_text_pos)
+        DISPLAYSURF.blit(balloon_count_text, balloon_count_text_pos)
                 
-        
-    pygame.display.update()
-    clock.tick(FPS)
+        pygame.display.update()
+        clock.tick(FPS)
+
+if __name__ == '__main__':
+    play_game()
