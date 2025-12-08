@@ -3,6 +3,7 @@ import pygame.locals as pl
 import sys
 import random
 import time
+from sprites import Player, Balloon, Arrow, INITIAL_SPEED_Y
 
 pygame.init()
 
@@ -22,17 +23,6 @@ GREEN = (0, 255, 0)
 BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
 
-# --- Physics Constants ---
-# Vertical acceleration due to gravity. The higher this value, the faster the arc.
-GRAVITY = 0.5 
-# Initial horizontal speed (constant).
-INITIAL_SPEED_X = 5
-# Initial vertical speed (upwards) when the balloon is created or bounces.
-INITIAL_SPEED_Y = 20 
-# Bounce Damping: 1.0 is a perfect bounce (no energy lost, constant height). 
-# Use 0.95 to simulate slight energy loss (the balloon bounces slightly lower each time).
-DAMPING_FACTOR = 1.0 
-
 DISPLAYSURF = pygame.display.set_mode((SCREEN_WIDTH,SCREEN_HEIGHT))
 DISPLAYSURF.fill(WHITE)
 pygame.display.set_caption("SuperPang!")
@@ -40,78 +30,24 @@ pygame.display.set_caption("SuperPang!")
 bullets = []
 balloons = []
 
-class Player(pygame.sprite.Sprite):
-    def __init__(self):
-        super().__init__() 
-        self.image = pygame.image.load("player.png")
-        self.rect = self.image.get_rect()
-        self.rect.center = (SCREEN_WIDTH / 2, SCREEN_HEIGHT - 80)
- 
-    def move(self):
-        pressed_keys = pygame.key.get_pressed()
-
-        if self.rect.left > 0:
-              if pressed_keys[pl.K_LEFT]:
-                  self.rect.move_ip(-5, 0)
-        if self.rect.right < SCREEN_WIDTH:        
-              if pressed_keys[pl.K_RIGHT]:
-                  self.rect.move_ip(5, 0)
-
-class Balloon(pygame.sprite.Sprite):
-      def __init__(self):
-        super().__init__() 
-        self.image = pygame.image.load("balloon.png")
-        self.rect = self.image.get_rect()
-        self.rect.center=(random.randint(40,SCREEN_WIDTH-40),0)
-        # Velocities (float for smooth movement)
-        self.vx = INITIAL_SPEED_X * random.choice([-1, 1]) # Random left or right
-        self.vy = 0 # Starts with 0 vertical velocity        
-        self.x = float(self.rect.x)
-        self.y = float(self.rect.y)
- 
-      def move(self):
-          # Apply Gravity (Acceleration): This creates the arc motion.
-          # Vertical velocity is constantly increasing (downwards)
-          self.vy += GRAVITY
-        
-          # Update Position: Use float positions, then sync with rect
-          self.x += self.vx
-          self.y += self.vy
-        
-          # Handle Wall Collisions (Horizontal Bounce)
-          if self.rect.left <= 0:
-              self.vx *= -1 # Reverse horizontal direction
-              self.x = 1 # Prevent sticking to the wall
-          elif self.rect.right >= SCREEN_WIDTH:
-              self.vx *= -1 # Reverse horizontal direction
-              self.x = SCREEN_WIDTH - self.rect.width - 1 # Prevent sticking
-          # 4. Handle Floor Collision (Vertical Bounce)
-          if self.y >= STAGE_HEIGHT:
-              self.vy = -INITIAL_SPEED_Y * DAMPING_FACTOR 
-              self.y = STAGE_HEIGHT - self.rect.height # Prevent falling through the floor
-            
-        
-          # 5. Sync Rect position with float position
-          self.rect.x = int(self.x)
-          self.rect.y = int(self.y)
-
-class Arrow(pygame.sprite.Sprite):
-      def __init__(self, x):
-        super().__init__() 
-        self.image = pygame.image.load("arrow.png")
-        self.rect = self.image.get_rect()
-        self.rect.center=(x, SCREEN_HEIGHT - 100) 
- 
-      def move(self):
-        if self.rect.top > 0:
-            self.rect.move_ip(0,-SPEED)
-        else:
-            self.kill()
-
 # Setting up sprites
-p = Player()
-b1 = Balloon()
+px, py = SCREEN_WIDTH / 2, SCREEN_HEIGHT - 80
+p = Player(initial_x=px, initial_y=py, min_x=0, max_x=SCREEN_WIDTH)
 
+BALLOON_BOUNDS = {'min_x':0, 'max_x': SCREEN_WIDTH, 'min_y': 0, 'max_y': STAGE_HEIGHT}
+def fresh_balloon():
+    x_dir = random.choice([-1, 1]) # Random left or right
+    initial_x = 0 if x_dir == 1 else SCREEN_WIDTH - 40
+    initial_y, initial_vy = 0, 0
+    
+    return Balloon(size=3,
+                   initial_x=initial_x,
+                   initial_y=initial_y,
+                   x_dir=x_dir,
+                   vy=initial_vy,
+                   bounds=BALLOON_BOUNDS)
+
+b1 = fresh_balloon()
 # Creating sprites collections
 balloons = pygame.sprite.Group()
 balloons.add(b1)
@@ -119,6 +55,10 @@ arrows = pygame.sprite.Group()
 all_sprites = pygame.sprite.Group()
 all_sprites.add(b1)
 all_sprites.add(p)
+
+ADD_BALLOON_EVENT = pygame.USEREVENT+1
+BALLON_INTERVAL = 5000
+pygame.time.set_timer(ADD_BALLOON_EVENT, BALLON_INTERVAL)
 
 FIRING = False
 FIRE_RATE = 30 # frames between shots
@@ -137,12 +77,18 @@ while True:
         elif event.type == pl.MOUSEBUTTONUP:
             FIRING = False
             frames_since_shot = 0
+        elif event.type == ADD_BALLOON_EVENT:
+            b = fresh_balloon()
+            balloons.add(b)
+            all_sprites.add(b)
+            pass
      
     DISPLAYSURF.fill(WHITE)
     #print(f"time since last arrow: {time_since_last_arrow}. FIRING: {FIRING}")
     if FIRING and frames_since_shot > FIRE_RATE:
-        p_x = p.rect.centerx
-        a = Arrow(p_x)
+        a_x = p.rect.centerx
+        a_y = SCREEN_HEIGHT - 100
+        a = Arrow(initial_x=a_x, initial_y=a_y, speed=INITIAL_SPEED_Y)
         arrows.add(a)
         all_sprites.add(a)
         frames_since_shot = 0
@@ -161,6 +107,31 @@ while True:
         time.sleep(2)
         pygame.quit()
         sys.exit()
+    for b in balloons:
+        hit_list = pygame.sprite.spritecollide(b, arrows, dokill=True)
+        if len(hit_list) > 0:
+            if b.size > 1:
+                vy = -INITIAL_SPEED_Y / 2
+                size = b.size-1
+                initial_x,initial_y = b.rect.centerx, b.rect.centery
+                c1 = Balloon(size=size,
+                             initial_x=b.rect.left,
+                             initial_y=initial_y,
+                             x_dir=-1,
+                             vy=vy,
+                             bounds=BALLOON_BOUNDS)
+                c2 = Balloon(size=size,
+                             initial_x=b.rect.right,
+                             initial_y=initial_y,
+                             x_dir=1,
+                             vy=vy,
+                             bounds=BALLOON_BOUNDS)
+                balloons.add(c1)
+                balloons.add(c2)
+                all_sprites.add(c1)
+                all_sprites.add(c2)
+            b.kill()
+                
         
     pygame.display.update()
     clock.tick(FPS)
