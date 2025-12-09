@@ -14,11 +14,13 @@ INITIAL_SPEED_Y = 20
 DAMPING_FACTOR = 1.0
 
 ASSETS_PATH = "assets"
+IMAGES_PATH = os.path.join(ASSETS_PATH, "images")
+AUDIO_PATH = os.path.join(ASSETS_PATH, "audio")
 
 class Player(pygame.sprite.Sprite):
     def __init__(self, initial_x, initial_y, min_x, max_x):
         super().__init__() 
-        self.image = pygame.image.load(os.path.join(ASSETS_PATH, "player.png"))
+        self.image = pygame.image.load(os.path.join(IMAGES_PATH, "player.png"))
         self.rect = self.image.get_rect()
         self.rect.center = (initial_x, initial_y)
         self.min_x = min_x
@@ -35,8 +37,16 @@ class Player(pygame.sprite.Sprite):
                   self.rect.move_ip(8, 0)
 
 class Balloon(pygame.sprite.Sprite):
-      def __init__(self, size, initial_x, initial_y, x_dir, vy, bounds, level_balloon=False):
-          """ 3 is the largest size balloon."""
+      def __init__(self,
+                   size,
+                   initial_x,
+                   initial_y,
+                   x_dir,
+                   vy,
+                   bounds,
+                   level_balloon=False,
+                   freezer=False):
+          """ 4 is the largest size balloon."""
           super().__init__()
           self.size = size
           image_file = "balloon_star.png" if level_balloon else "balloon.png"
@@ -50,9 +60,20 @@ class Balloon(pygame.sprite.Sprite):
           self.bounds = bounds
           self.level_balloon = level_balloon
           self.star = True # flip between star and clock on each bounce
+          self.freezer=freezer
+          self.flash_off = True
+
+      def flash(self):
+          print("I was flashed")
+          if self.flash_off:
+              self.set_image("balloon_flash.png")
+              self.flash_off = False
+          else:
+              self.set_image("balloon.png")
+              self.flash_off = True
 
       def set_image(self, image_file):
-          image = pygame.image.load(os.path.join(ASSETS_PATH, image_file))
+          image = pygame.image.load(os.path.join(IMAGES_PATH, image_file))
           # return a width and height of an image
           img_size = image.get_size()
           # scale the image
@@ -97,7 +118,7 @@ class Balloon(pygame.sprite.Sprite):
 class Arrow(pygame.sprite.Sprite):
       def __init__(self, initial_x, initial_y, speed):
         super().__init__() 
-        self.image = pygame.image.load(os.path.join(ASSETS_PATH, "arrow.png"))
+        self.image = pygame.image.load(os.path.join(IMAGES_PATH, "arrow.png"))
         self.rect = self.image.get_rect()
         self.rect.center=(initial_x, initial_y)
         self.speed = speed
