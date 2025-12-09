@@ -50,7 +50,14 @@ class Balloon(pygame.sprite.Sprite):
           super().__init__()
           self.size = size
           image_file = "balloon_star.png" if level_balloon else "balloon.png"
-          self.set_image(image_file)
+          self.image_normal = pygame.image.load(os.path.join(IMAGES_PATH, image_file))
+          self.image = self.image_normal
+          self.rect = self.image.get_rect()
+          self.set_image(self.image_normal)
+          
+          self.image_flash = pygame.image.load(os.path.join(IMAGES_PATH, "balloon_flash.png"))
+          self.image_clock = pygame.image.load(os.path.join(IMAGES_PATH, "balloon_clock.png"))
+        
           self.rect.center=(initial_x, initial_y)
           # Velocities (float for smooth movement)
           self.vx = INITIAL_SPEED_X * x_dir
@@ -64,28 +71,27 @@ class Balloon(pygame.sprite.Sprite):
           self.flash_off = True
 
       def flash(self):
-          print("I was flashed")
           if self.flash_off:
-              self.set_image("balloon_flash.png")
+              self.set_image(self.image_flash)
               self.flash_off = False
           else:
-              self.set_image("balloon.png")
+              self.set_image(self.image_flash)
               self.flash_off = True
 
-      def set_image(self, image_file):
-          image = pygame.image.load(os.path.join(IMAGES_PATH, image_file))
+      def set_image(self, image):
           # return a width and height of an image
           img_size = image.get_size()
           # scale the image
           self.image = pygame.transform.scale(image, (int(img_size[0]*self.size), int(img_size[1]*self.size)))
-          self.rect = self.image.get_rect()
+          center = self.rect.center
+          self.rect = self.image.get_rect(center=center)
 
       def level_balloon_flip(self):
           if self.star:
-              self.set_image("balloon_clock.png")
+              self.set_image(self.image_clock)
               self.star = False
           else:
-              self.set_image("balloon_star.png")
+              self.set_image(self.image_clock)
               self.star = True
           
       def move(self):

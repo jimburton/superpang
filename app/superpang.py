@@ -45,7 +45,6 @@ def fresh_balloon(level_balloon=False):
     x_dir = random.choice([-1, 1]) # Random left or right
     initial_x = 0 if x_dir == 1 else SCREEN_WIDTH - 40
     initial_y, initial_vy = 0, 0
-    
     return Balloon(size=4,
                    initial_x=initial_x,
                    initial_y=initial_y,
@@ -173,7 +172,6 @@ def play_game():
                 elif event.type == FLASH_EVENT:
                     for b in balloons:
                         if b.size == 1 and b.freezer:
-                            print("Flashing a balloon")
                             b.flash()
                 elif event.type == UNFREEZE_EVENT:
                     frozen = False
@@ -217,8 +215,8 @@ def play_game():
                         vy = 0 if b.rect.top < 20 else -INITIAL_SPEED_Y / 2
                         size = b.size - 1
                         initial_y = b.rect.centery
-                        c1 = Balloon(size=size, initial_x=b.rect.left, initial_y=initial_y, x_dir=-1, vy=vy, bounds=BALLOON_BOUNDS)
-                        c2 = Balloon(size=size, initial_x=b.rect.right, initial_y=initial_y, x_dir=1, vy=vy, bounds=BALLOON_BOUNDS)
+                        c1 = Balloon(size=size, initial_x=b.rect.left, initial_y=initial_y, x_dir=-1, vy=vy, bounds=BALLOON_BOUNDS, freezer=b.freezer)
+                        c2 = Balloon(size=size, initial_x=b.rect.right, initial_y=initial_y, x_dir=1, vy=vy, bounds=BALLOON_BOUNDS, freezer=False)
                         balloons.add(c1, c2)
                         all_sprites.add(c1, c2)
                     elif b.size == 1 and b.freezer:
