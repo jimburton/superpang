@@ -30,23 +30,22 @@ GOLD = (255, 215, 0)
 DISPLAYSURF = pygame.display.set_mode((SCREEN_WIDTH,SCREEN_HEIGHT))
 pygame.display.set_caption("SuperPang!")
 
-# Events
+# Events.
 EVENT_ADD_BALLOON = pygame.USEREVENT+1 # Add a new balloon.
 EVENT_EXPLODE = pygame.USEREVENT+2 # Explode one level of balloons.
 EVENT_UNFREEZE = pygame.USEREVENT+3 # Unfreeze the balloons.
 EVENT_FRESH_BALLOON_WAIT = pygame.USEREVENT+5 # End the waiting period of new balloons.
 EVENT_PAUSE_LABEL_FLASH = pygame.USEREVENT+6 # Flash the "PAUSED" label.
 
-# Intervals between events. All in ms except INTERVAL_FIRE.
+# Intervals between events, in ms.
 INTERVAL_FRESH_BALLOON = 10000
 INTERVAL_FRESH_BALLOON_WAIT = 2000 
-INTERVAL_FIRE = 30 # frames between shots
 INTERVAL_FREEZE_CLOCK = 4000
 INTERVAL_FREEZE_BALLOON = 2000
 INTERVAL_EXPLODE = 500
 INTERVAL_PAUSE_LABEL_FLASH = 800
 
-# Labels for the HUD
+# Labels for the HUD.
 FONTS_PATH = os.path.join(ASSETS_PATH, "fonts")
 FONT_FILE_REGULAR = os.path.join(FONTS_PATH, "BitcountPropSingle-Regular.ttf")
 FONT_FILE_BOLD = os.path.join(FONTS_PATH, "BitcountPropSingle-Bold.ttf")
@@ -56,14 +55,14 @@ BIG_FONT = pygame.font.Font(FONT_FILE_REGULAR, 48)
 MASSIVE_FONT = pygame.font.Font(FONT_FILE_BOLD, 62)
 BALLOON_COUNT_TEXT_POS = (SCREEN_WIDTH-200, STAGE_HEIGHT+10)
 
-# Load the background music and balloon pop sound effect
+# Load the background music and balloon pop sound effect.
 pygame.mixer.music.load(os.path.join(AUDIO_PATH, "theme.ogg"))
 AUDIO_POP = pygame.mixer.Sound(os.path.join(AUDIO_PATH, "pop.ogg"))
 
-# Miscellaneous constants
+# Miscellaneous constants.
 TOTAL_BALLOONS = 100
 BALLOON_BOUNDS = {'min_x':0, 'max_x': SCREEN_WIDTH, 'min_y': 0, 'max_y': STAGE_HEIGHT}
-# List of ten background images
+# Background image for each level.
 BACKGROUND_IMAGES = []
 for i in range(1, 11):
     BACKGROUND_IMAGES.append(pygame.image.load(os.path.join(IMAGES_PATH, f"background_{i}.jpg")))
@@ -84,11 +83,14 @@ class SuperPang:
         """Repeatable set up at the beginning of a game."""
         px, py = SCREEN_WIDTH / 2, SCREEN_HEIGHT - 80
         self.player = Player(initial_x=px, initial_y=py, min_x=0, max_x=SCREEN_WIDTH)
+        self.player_group = pygame.sprite.GroupSingle(self.player)
         self.make_freezer = True # whether the next balloon should be a freezer.
         b1 = self.fresh_balloon(level_balloon=False)
         # Create sprites collections
         self.balloons = pygame.sprite.Group()
         self.balloons.add(b1)
+        # there's only ever one arrow on screen right now, but keeping the
+        # group in case I add powerups.
         self.arrows = pygame.sprite.Group()
         self.all_sprites = pygame.sprite.Group()
         self.all_sprites.add(b1)
@@ -186,10 +188,8 @@ class SuperPang:
         balloon_count = 1
         level = 1
         playing = True
-        frames_since_shot = 0
         paused = False
         paused_label = True
-        firing = False
     
         while playing:
             # Set background image.
@@ -204,8 +204,10 @@ class SuperPang:
                                          SCREEN_WIDTH,
                                          SCREEN_HEIGHT-STAGE_HEIGHT))
         
-            frames_since_shot += 1
             end_of_level = False
+
+            # is there an arrow on screen?
+            firing = len(self.arrows) > 0
 
             events = pygame.event.get()
             # Check for pause/unpause before other events.
@@ -229,15 +231,10 @@ class SuperPang:
             if not paused:
                 # Handle events.
                 for event in events:          
-                    if event.type == pl.MOUSEBUTTONDOWN:
+                    if event.type == pl.MOUSEBUTTONDOWN and not firing:
                         firing = True
                         self.player.firing(is_firing=firing)
-                        # shoot straight away
-                        frames_since_shot = INTERVAL_FIRE + 1
-                    elif event.type == pl.MOUSEBUTTONUP:
-                        firing = False
-                        self.player.firing(is_firing=firing)
-                        frames_since_shot = 0
+                        self.fire_arrow()
                     elif event.type == EVENT_ADD_BALLOON:
                         balloon_count += 1
                         new_level_target = int(balloon_count / 10) + 1
@@ -261,10 +258,6 @@ class SuperPang:
                         # Allow new balloons to start moving and be popped.
                         for b in self.balloons:
                             b.waiting = False
-
-                if firing and frames_since_shot > INTERVAL_FIRE:
-                    self.fire_arrow()
-                    frames_since_shot = 0
 
                 if not self.frozen:
                     # Move the sprites.
@@ -302,8 +295,12 @@ class SuperPang:
                     label = MASSIVE_FONT.render("PAUSED", True, WHITE)
                     label_y = SCREEN_HEIGHT / 2
                     DISPLAYSURF.blit(label, (250, label_y))
+
             # Draw all sprites.
-            self.all_sprites.draw(DISPLAYSURF) 
+            self.balloons.draw(DISPLAYSURF)
+            self.arrows.draw(DISPLAYSURF)
+            self.player_group.draw(DISPLAYSURF)
+            
             # Finalize the frame.
             pygame.display.update()
             clock.tick(self.fps)
@@ -338,8 +335,8 @@ class SuperPang:
         Add an Arrow sprite.
         """
         a_x = self.player.rect.centerx
-        a_y = STAGE_HEIGHT
-        a = Arrow(initial_x=a_x, initial_y=a_y, speed=INITIAL_SPEED_Y)
+        a_y = STAGE_HEIGHT - 20
+        a = Arrow(initial_x=a_x, initial_y=a_y)
         self.arrows.add(a)
         self.all_sprites.add(a)
     

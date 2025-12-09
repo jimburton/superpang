@@ -11,10 +11,9 @@ GRAVITY = 0.5
 # Initial horizontal speed (constant).
 INITIAL_SPEED_X = 3
 # Initial vertical speed (upwards) when the balloon is created or bounces.
-INITIAL_SPEED_Y = 20 
-# Bounce Damping: 1.0 is a perfect bounce (no energy lost, constant height). 
-# Use 0.95 to simulate slight energy loss (the balloon bounces slightly lower each time).
-DAMPING_FACTOR = 1.0
+INITIAL_SPEED_Y = 20
+# Speed of the arrows
+ARROW_SPEED = 5
 
 # Paths to assets
 ASSETS_PATH = "assets"
@@ -23,7 +22,9 @@ AUDIO_PATH = os.path.join(ASSETS_PATH, "audio")
 IMAGE_PLAYER_STANDING = pygame.image.load(os.path.join(IMAGES_PATH, "player_standing.png"))
 IMAGE_PLAYER_FIRING = pygame.image.load(os.path.join(IMAGES_PATH, "player_firing.png"))
 IMAGE_PLAYER_LEFT_0 = pygame.image.load(os.path.join(IMAGES_PATH, "player_left_0.png"))
-IMAGE_ARROW = pygame.image.load(os.path.join(IMAGES_PATH, "arrow.png"))
+
+IMAGE_ARROW_HEAD = pygame.image.load(os.path.join(IMAGES_PATH, "arrow_head.png"))
+IMAGE_ARROW_TAIL = pygame.image.load(os.path.join(IMAGES_PATH, "arrow_tail.png"))
 
 IMAGE_BALLOON_5 = pygame.image.load(os.path.join(IMAGES_PATH, "balloon_5.png"))
 IMAGE_BALLOON_4 = pygame.image.load(os.path.join(IMAGES_PATH, "balloon_4.png"))
@@ -162,7 +163,7 @@ class Balloon(pygame.sprite.Sprite):
             self.x = self.bounds['max_x'] - self.rect.width - 1 # Prevent sticking
         # Handle Floor Collision (Vertical Bounce)
         if self.y >= self.bounds['max_y'] - self.rect.height:
-            self.vy = -INITIAL_SPEED_Y * DAMPING_FACTOR 
+            self.vy = -INITIAL_SPEED_Y  
             self.y = self.bounds['max_y'] - self.rect.height # Prevent falling through the floor
             if self.level_balloon:
                 self.level_balloon_flip()
@@ -175,21 +176,62 @@ class Arrow(pygame.sprite.Sprite):
     """
     Class for the arrow sprite.
     """
-    def __init__(self, initial_x, initial_y, speed):
+    def __init__(self, initial_x, initial_y):
         """
         Create an new Arrow sprite.
         """
-        super().__init__() 
-        self.image = IMAGE_ARROW
+        super().__init__()
+        self.num_segments = 2
+        self.image = self.build_arrow()
         self.rect = self.image.get_rect()
-        self.rect.center=(initial_x, initial_y)
-        self.speed = speed
+        self.rect.centerx = initial_x
+        self.rect.bottom = initial_y
+        self.speed = ARROW_SPEED
+        self.segment_height = IMAGE_ARROW_TAIL.get_rect().height
+        self.height = self.segment_height * 3
  
     def move(self):
         """
         Move the sprite, removing it when it reaches the top of the screen.
         """
         if self.rect.top > 0:
-            self.rect.move_ip(0,-self.speed)
+            self.height += self.speed
+            self.grow()
         else:
             self.kill()
+
+    def grow(self):
+        """
+        Add a segment to the sprite if the height has grown enough.
+        """
+        if self.height / self.num_segments > self.num_segments + 1:
+            self.num_segments += 1
+            old_bottom = self.rect.bottom
+            self.image = self.build_arrow()
+            self.rect = self.image.get_rect(centerx=self.rect.centerx, bottom=old_bottom)
+
+    def build_arrow(self):
+        """
+        Combines the head surface and repeated tail segments into a single,
+        composite object.
+        """
+        # Get dimensions
+        head_h = IMAGE_ARROW_HEAD.get_height()
+        tail_h = IMAGE_ARROW_TAIL.get_height()
+        width = IMAGE_ARROW_HEAD.get_width() # Assume head and tail have the same width
+
+        total_height = head_h + (self.num_segments * tail_h)
+    
+        # Create the new, empty surface
+        arrow_surf = pygame.Surface((width, total_height), pygame.SRCALPHA)
+    
+        # 4. Blit the tail segments (starting from the bottom of the arrow)
+        y_offset = total_height - tail_h 
+
+        for i in range(self.num_segments):
+            arrow_surf.blit(IMAGE_ARROW_TAIL, (0, y_offset - (i * tail_h)))
+    
+        # Blit the arrow head at the very top (y=0)
+        arrow_surf.blit(IMAGE_ARROW_HEAD, (0, 0))
+    
+        return arrow_surf
