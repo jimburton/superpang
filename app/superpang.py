@@ -4,7 +4,7 @@ import sys
 import random
 import time
 import os
-from sprites import Player, Balloon, Arrow, INITIAL_SPEED_Y, AUDIO_PATH
+from sprites import Player, Balloon, Arrow, INITIAL_SPEED_Y, AUDIO_PATH, IMAGES_PATH
 
 pygame.init()
 
@@ -54,6 +54,11 @@ FRESH_BALLOON_INTERVAL = 2000
 pygame.mixer.music.load(os.path.join(AUDIO_PATH, "theme.ogg"))
 AUDIO_POP = pygame.mixer.Sound(os.path.join(AUDIO_PATH, "pop.ogg"))
 TOTAL_BALLOONS = 100
+
+# Background images
+BACKGROUND_IMAGES = []
+for i in range(1, 11):
+    BACKGROUND_IMAGES.append(pygame.image.load(os.path.join(IMAGES_PATH, f"background_{i}.jpg")))
 
 class SuperPang:
 
@@ -115,10 +120,19 @@ class SuperPang:
         firing = False
     
         while playing:
-            DISPLAYSURF.fill(WHITE)
+            # set background image
+            bg = BACKGROUND_IMAGES[level-1]
+            DISPLAYSURF.blit(bg, (0, 0))
         
-            # Draw the ground line
-            pygame.draw.line(DISPLAYSURF, BLACK, (0, STAGE_HEIGHT), (SCREEN_WIDTH, STAGE_HEIGHT), 2)
+            # Draw the ground line and background
+            pygame.draw.line(DISPLAYSURF,
+                             BLACK,
+                             (0, STAGE_HEIGHT),
+                             (SCREEN_WIDTH, STAGE_HEIGHT),
+                             2)
+            pygame.draw.rect(DISPLAYSURF,
+                             WHITE,
+                             pygame.Rect(0, STAGE_HEIGHT, SCREEN_WIDTH, SCREEN_HEIGHT-STAGE_HEIGHT))
         
             frames_since_shot += 1
             end_of_level = False
@@ -257,8 +271,9 @@ class SuperPang:
                         elif b.size == 1 and b.freezer:
                             # it is a size 1 freezer
                             self.freeze(FREEZE_TIME_BALLOON)
-                        pygame.mixer.Sound.play(AUDIO_POP)
-                        b.kill()
+                        if not b.waiting:
+                            pygame.mixer.Sound.play(AUDIO_POP)
+                            b.kill()
                 # player won the game
                 if len(self.balloons) == 0 and balloon_count == TOTAL_BALLOONS:
                     DISPLAYSURF.fill(GOLD)
