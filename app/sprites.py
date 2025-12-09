@@ -24,8 +24,18 @@ IMAGE_PLAYER_STANDING = pygame.image.load(os.path.join(IMAGES_PATH, "player_stan
 IMAGE_PLAYER_FIRING = pygame.image.load(os.path.join(IMAGES_PATH, "player_firing.png"))
 IMAGE_PLAYER_LEFT_0 = pygame.image.load(os.path.join(IMAGES_PATH, "player_left_0.png"))
 IMAGE_ARROW = pygame.image.load(os.path.join(IMAGES_PATH, "arrow.png"))
-IMAGE_BALLOON_NORMAL = pygame.image.load(os.path.join(IMAGES_PATH, "balloon.png"))
-IMAGE_BALLOON_FLASH = pygame.image.load(os.path.join(IMAGES_PATH, "balloon_flash.png"))
+
+IMAGE_BALLOON_5 = pygame.image.load(os.path.join(IMAGES_PATH, "balloon_5.png"))
+IMAGE_BALLOON_4 = pygame.image.load(os.path.join(IMAGES_PATH, "balloon_4.png"))
+IMAGE_BALLOON_3 = pygame.image.load(os.path.join(IMAGES_PATH, "balloon_3.png"))
+IMAGE_BALLOON_2 = pygame.image.load(os.path.join(IMAGES_PATH, "balloon_2.png"))
+IMAGE_BALLOON_1 = pygame.image.load(os.path.join(IMAGES_PATH, "balloon_1.png"))
+BALLOONS = {1: IMAGE_BALLOON_1,
+            2: IMAGE_BALLOON_2,
+            3: IMAGE_BALLOON_3,
+            4: IMAGE_BALLOON_4,
+            5: IMAGE_BALLOON_5}
+IMAGE_BALLOON_FREEZE = pygame.image.load(os.path.join(IMAGES_PATH, "balloon_1_freeze.png")) 
 IMAGE_BALLOON_STAR = pygame.image.load(os.path.join(IMAGES_PATH, "balloon_star.png"))
 IMAGE_BALLOON_CLOCK = pygame.image.load(os.path.join(IMAGES_PATH, "balloon_clock.png"))
 
@@ -96,15 +106,18 @@ class Balloon(pygame.sprite.Sprite):
                  freezer=False):
         """
         Create a new balloon sprite with the given attributes.
-        The image is scaled to match the size, where 4 is the largest.
         """
         super().__init__()
         self.size = size
-        image = IMAGE_BALLOON_STAR if level_balloon else IMAGE_BALLOON_NORMAL
+        if level_balloon:
+            image = IMAGE_BALLOON_STAR
+        elif size == 1 and freezer:
+            image = IMAGE_BALLOON_FREEZE
+        else:
+            image = BALLOONS[size]
         self.image = image
         self.rect = self.image.get_rect()
         self.rect.center=(initial_x, initial_y)
-        self.scale_image()
         # Velocities (float for smooth movement)
         self.vx = INITIAL_SPEED_X * x_dir
         self.vy = vy        
@@ -115,29 +128,7 @@ class Balloon(pygame.sprite.Sprite):
         self.star = True # flip between star and clock on each bounce
         self.freezer=freezer
         self.flash_off = True
-        self.waiting = size == 4
-
-    def flash(self):
-        """
-        Toggle the image used by freezer balloons.
-        """
-        if self.flash_off:
-            self.image = IMAGE_BALLOON_FLASH
-            self.flash_off = False
-        else:
-            self.image = IMAGE_BALLOON_NORMAL
-            self.flash_off = True
-        self.scale_image()
-
-    def scale_image(self):
-        """
-        Use the size attribute to scale the image. 
-        """
-        img_size = self.image.get_size()
-        # scale the image
-        self.image = pygame.transform.scale(self.image, (int(img_size[0]*self.size), int(img_size[1]*self.size)))
-        center = self.rect.center
-        self.rect = self.image.get_rect(center=center)
+        self.waiting = size == 5
 
     def level_balloon_flip(self):
         """
@@ -149,7 +140,6 @@ class Balloon(pygame.sprite.Sprite):
         else:
             self.image = IMAGE_BALLOON_STAR
             self.star = True
-        self.scale_image()
           
     def move(self):
         """

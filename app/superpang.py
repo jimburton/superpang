@@ -5,7 +5,6 @@ import pygame
 import pygame.locals as pl
 import sys
 import random
-import time
 import os
 from sprites import Player, Balloon, Arrow, INITIAL_SPEED_Y, AUDIO_PATH, ASSETS_PATH, IMAGES_PATH
 
@@ -35,18 +34,16 @@ pygame.display.set_caption("SuperPang!")
 EVENT_ADD_BALLOON = pygame.USEREVENT+1 # Add a new balloon.
 EVENT_EXPLODE = pygame.USEREVENT+2 # Explode one level of balloons.
 EVENT_UNFREEZE = pygame.USEREVENT+3 # Unfreeze the balloons.
-EVENT_FLASH = pygame.USEREVENT+4 # Cause the size 1 freezers to flash.
 EVENT_FRESH_BALLOON_WAIT = pygame.USEREVENT+5 # End the waiting period of new balloons.
 EVENT_PAUSE_LABEL_FLASH = pygame.USEREVENT+6 # Flash the "PAUSED" label.
 
 # Intervals between events. All in ms except INTERVAL_FIRE.
 INTERVAL_FRESH_BALLOON = 10000
 INTERVAL_FRESH_BALLOON_WAIT = 2000 
-INTERVAL_FLASH = 500
 INTERVAL_FIRE = 30 # frames between shots
 INTERVAL_FREEZE_CLOCK = 4000
 INTERVAL_FREEZE_BALLOON = 2000
-INTERVAL_EXPLODE = 1000
+INTERVAL_EXPLODE = 500
 INTERVAL_PAUSE_LABEL_FLASH = 800
 
 # Labels for the HUD
@@ -75,10 +72,12 @@ class SuperPang:
     """
     The game class.
     """
-    def __init__(self):
+    def __init__(self, god_mode=False, fps=FPS):
         """
         Initialise the game.
         """
+        self.god_mode = god_mode
+        self.fps = fps
         self.set_up()
 
     def set_up(self):
@@ -100,8 +99,6 @@ class SuperPang:
         self.balloon_interval = INTERVAL_FRESH_BALLOON
         # Set the event to add the next balloon.
         pygame.time.set_timer(EVENT_ADD_BALLOON, self.balloon_interval)
-        # Set the event to flash the size 1 freezer balloons.
-        pygame.time.set_timer(EVENT_FLASH, INTERVAL_FLASH)
 
     def fresh_balloon(self, level_balloon=False):
         """ Make a new, full-size balloon. It appears in either the upper-right or
@@ -115,7 +112,7 @@ class SuperPang:
         initial_x = 0 if x_dir == 1 else SCREEN_WIDTH - 40
         initial_y, initial_vy = 0, 0
         pygame.time.set_timer(EVENT_FRESH_BALLOON_WAIT, INTERVAL_FRESH_BALLOON_WAIT)
-        return Balloon(size=4,
+        return Balloon(size=5,
                        initial_x=initial_x,
                        initial_y=initial_y,
                        x_dir=x_dir,
@@ -137,6 +134,7 @@ class SuperPang:
         # than one with two children.
         if len(self.balloons) > 0:
             new_balloons = []
+            added_children = False
             for b in self.balloons:
                 if not b.waiting:
                     if b.size > 1:
@@ -158,11 +156,16 @@ class SuperPang:
                                      bounds=BALLOON_BOUNDS)
                         new_balloons.append(c1)
                         new_balloons.append(c2)
+                        added_children = True
                     b.kill()
                     pygame.mixer.Sound.play(AUDIO_POP)
             for b in new_balloons:
                 self.balloons.add(b)
                 self.all_sprites.add(b)
+            if not added_children:
+                # There may still be balloons in the group but they are waiting.
+                self.frozen = False
+                pygame.time.set_timer(EVENT_EXPLODE, 0)
         else:
             # We have popped all of the balloons, unfreeze and clear
             # the timer. 
@@ -238,24 +241,20 @@ class SuperPang:
                     elif event.type == EVENT_ADD_BALLOON:
                         balloon_count += 1
                         new_level_target = int(balloon_count / 10) + 1
-                        end_of_level = new_level_target > level
-                        b = self.fresh_balloon(level_balloon=end_of_level)
-                        self.balloons.add(b)
-                        self.all_sprites.add(b)
-                        if balloon_count == TOTAL_BALLOONS:
-                            # Clear timer that adds balloons.
+                        if new_level_target > 10:
+                            # End of level 10, clear timer
                             pygame.time.set_timer(EVENT_ADD_BALLOON, 0)
-                        elif end_of_level:
-                            # Decrement the time between balloons.
-                            self.balloon_interval = INTERVAL_FRESH_BALLOON - (new_level_target * 100)
-                            pygame.time.set_timer(EVENT_ADD_BALLOON, max(800, self.balloon_interval))
+                        else:
+                            end_of_level = new_level_target > level
+                            b = self.fresh_balloon(level_balloon=end_of_level)
+                            self.balloons.add(b)
+                            self.all_sprites.add(b)
+                            if end_of_level:
+                                # Decrement the time between balloons.
+                                self.balloon_interval = INTERVAL_FRESH_BALLOON - (new_level_target * 100)
+                                pygame.time.set_timer(EVENT_ADD_BALLOON, max(800, self.balloon_interval))
                     elif event.type == EVENT_EXPLODE:
                         self.explode_one_level()
-                    elif event.type == EVENT_FLASH:
-                        # Cause level 1 freezers to flash.
-                        for b in self.balloons:
-                            if b.size == 1 and b.freezer:
-                                b.flash()
                     elif event.type == EVENT_UNFREEZE:
                         self.frozen = False
                     elif event.type == EVENT_FRESH_BALLOON_WAIT:
@@ -280,7 +279,8 @@ class SuperPang:
                         arrow.move()
 
                 # Collision detection for player and balloons.
-                playing = self.collide_player(DISPLAYSURF)
+                if not self.frozen and not self.god_mode:
+                    playing = self.collide_player(DISPLAYSURF)
 
                 # Collision detection for arrows and balloons.
                 self.collide_arrows_balloons()
@@ -291,7 +291,7 @@ class SuperPang:
                     
                 # Draw labels.
                 new_level = int(balloon_count / 10) + 1
-                if new_level > level:
+                if new_level > level and new_level <= 10:
                     level = new_level
                 balloon_count_text = LABEL_FONT.render(f"Balloons: {balloon_count}", True, BLACK)
                 level_text = LABEL_FONT.render(f"Level: {level}", True, BLACK)
@@ -306,7 +306,7 @@ class SuperPang:
             self.all_sprites.draw(DISPLAYSURF) 
             # Finalize the frame.
             pygame.display.update()
-            clock.tick(FPS)
+            clock.tick(self.fps)
         # End of the game, wait to play another or end.
         play_again_loop = True
         while play_again_loop:
@@ -316,7 +316,7 @@ class SuperPang:
                     sys.exit()
                 elif event.type == pl.KEYDOWN and event.key == pl.K_SPACE:
                     play_again_loop = False
-            clock.tick(FPS)
+            clock.tick(self.fps)
         # If we didn't quit, start a new game
         self.set_up()
         self.play()
@@ -338,7 +338,7 @@ class SuperPang:
         Add an Arrow sprite.
         """
         a_x = self.player.rect.centerx
-        a_y = SCREEN_HEIGHT - 100
+        a_y = STAGE_HEIGHT
         a = Arrow(initial_x=a_x, initial_y=a_y, speed=INITIAL_SPEED_Y)
         self.arrows.add(a)
         self.all_sprites.add(a)
@@ -410,5 +410,13 @@ class SuperPang:
                     b.kill()
 
 if __name__ == '__main__':
-    game = SuperPang()
+    god_mode = False
+    fps = FPS
+    if len(sys.argv) > 1:
+        if sys.argv[1] == "GOD_MODE":
+            god_mode = True
+    if len(sys.argv) == 4:
+        if sys.argv[2] == "FPS":
+            fps = int(sys.argv[3])
+    game = SuperPang(god_mode, fps)
     game.play()
