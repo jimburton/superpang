@@ -31,10 +31,12 @@ DISPLAYSURF = pygame.display.set_mode((SCREEN_WIDTH,SCREEN_HEIGHT))
 DISPLAYSURF.fill(WHITE)
 pygame.display.set_caption("SuperPang!")
 
+# Events
 ADD_BALLOON_EVENT = pygame.USEREVENT+1
 EXPLODE_EVENT = pygame.USEREVENT+2
 UNFREEZE_EVENT = pygame.USEREVENT+3
 FLASH_EVENT = pygame.USEREVENT+4
+FRESH_BALLOON_WAIT_EVENT = pygame.USEREVENT+5
 INITIAL_BALLOON_INTERVAL = 10000 
 FLASH_INTERVAL = 500
 FIRE_RATE = 30 # frames between shots
@@ -47,6 +49,7 @@ BALLOON_COUNT_TEXT_POS = (SCREEN_WIDTH-200, STAGE_HEIGHT+10)
 FREEZE_TIME_STAR = 4000
 FREEZE_TIME_BALLOON = 2000
 EXPLODE_INTERVAL = 1000
+FRESH_BALLOON_INTERVAL = 2000
 
 pygame.mixer.music.load(os.path.join(AUDIO_PATH, "theme.ogg"))
 AUDIO_POP = pygame.mixer.Sound(os.path.join(AUDIO_PATH, "pop.ogg"))
@@ -81,6 +84,7 @@ class SuperPang:
         x_dir = random.choice([-1, 1]) # Random left or right
         initial_x = 0 if x_dir == 1 else SCREEN_WIDTH - 40
         initial_y, initial_vy = 0, 0
+        pygame.time.set_timer(FRESH_BALLOON_WAIT_EVENT, FRESH_BALLOON_INTERVAL)
         return Balloon(size=4,
                        initial_x=initial_x,
                        initial_y=initial_y,
@@ -188,6 +192,9 @@ class SuperPang:
                                 b.flash()
                     elif event.type == UNFREEZE_EVENT:
                         self.frozen = False
+                    elif event.type == FRESH_BALLOON_WAIT_EVENT:
+                        for b in self.balloons:
+                            b.waiting = False
 
                 if firing and frames_since_shot > FIRE_RATE:
                     a_x = self.player.rect.centerx
@@ -200,7 +207,9 @@ class SuperPang:
                 # Update sprites (movement and physics)
                 if not self.frozen:
                     for entity in self.all_sprites:
-                        entity.move()
+                        # entity is not a waiting balloon
+                        if not hasattr(entity, 'waiting') or not entity.waiting:
+                            entity.move()
                 else:
                     self.player.move()
                     for arrow in self.arrows:
@@ -223,8 +232,8 @@ class SuperPang:
                                 self.explode_balloons()
                             else:
                                 self.freeze(FREEZE_TIME_STAR)
-                        elif b.size > 1:
-                            # replace thr balloon with two smaller ones
+                        elif b.size > 1 and not b.waiting:
+                            # replace the balloon with two smaller ones
                             vy = 0 if b.rect.top < 20 else -INITIAL_SPEED_Y / 2
                             size = b.size - 1
                             initial_y = b.rect.centery

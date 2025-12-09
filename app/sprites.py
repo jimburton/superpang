@@ -91,6 +91,7 @@ class Balloon(pygame.sprite.Sprite):
           self.star = True # flip between star and clock on each bounce
           self.freezer=freezer
           self.flash_off = True
+          self.waiting = size == 4
 
       def flash(self):
           if self.flash_off:
