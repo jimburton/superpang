@@ -130,10 +130,12 @@ class SuperPang:
                         sys.exit()
                     elif event.type == pl.MOUSEBUTTONDOWN:
                         firing = True
+                        self.player.firing(is_firing=firing)
                         # shoot straight away
                         frames_since_shot = FIRE_RATE + 1
                     elif event.type == pl.MOUSEBUTTONUP:
-                        firing = False 
+                        firing = False
+                        self.player.firing(is_firing=firing)
                         frames_since_shot = 0
                     elif event.type == ADD_BALLOON_EVENT:
                         balloon_count += 1

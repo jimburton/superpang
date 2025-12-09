@@ -16,7 +16,10 @@ DAMPING_FACTOR = 1.0
 ASSETS_PATH = "assets"
 IMAGES_PATH = os.path.join(ASSETS_PATH, "images")
 AUDIO_PATH = os.path.join(ASSETS_PATH, "audio")
-IMAGE_PLAYER_STANDING = pygame.image.load(os.path.join(IMAGES_PATH, "player.png"))
+#IMAGE_PLAYER_STANDING = pygame.image.load(os.path.join(IMAGES_PATH, "player.png"))
+IMAGE_PLAYER_STANDING = pygame.image.load(os.path.join(IMAGES_PATH, "player_standing.png"))
+IMAGE_PLAYER_FIRING = pygame.image.load(os.path.join(IMAGES_PATH, "player_firing.png"))
+IMAGE_PLAYER_LEFT_0 = pygame.image.load(os.path.join(IMAGES_PATH, "player_left_0.png"))
 IMAGE_ARROW = pygame.image.load(os.path.join(IMAGES_PATH, "arrow.png"))
 IMAGE_BALLOON_NORMAL = pygame.image.load(os.path.join(IMAGES_PATH, "balloon.png"))
 IMAGE_BALLOON_FLASH = pygame.image.load(os.path.join(IMAGES_PATH, "balloon_flash.png"))
@@ -31,16 +34,34 @@ class Player(pygame.sprite.Sprite):
         self.rect.center = (initial_x, initial_y)
         self.min_x = min_x
         self.max_x = max_x
+        self.is_firing = False
+        self.animate_tick = 0
  
     def move(self):
         pressed_keys = pygame.key.get_pressed()
+        if pressed_keys[pl.K_LEFT] or pressed_keys[pl.K_RIGHT]:
+            image = IMAGE_PLAYER_STANDING
+            if pressed_keys[pl.K_LEFT] and self.rect.left > self.min_x:
+                self.rect.move_ip(-8, 0)
+                image = IMAGE_PLAYER_LEFT_0
+            elif pressed_keys[pl.K_RIGHT] and self.rect.right < self.max_x:        
+                self.rect.move_ip(8, 0)
+                image = pygame.transform.flip(IMAGE_PLAYER_LEFT_0, flip_x=True, flip_y=False)
+            self.set_image(image)
 
-        if self.rect.left > self.min_x:
-              if pressed_keys[pl.K_LEFT]:
-                  self.rect.move_ip(-8, 0)
-        if self.rect.right < self.max_x:        
-              if pressed_keys[pl.K_RIGHT]:
-                  self.rect.move_ip(8, 0)
+    def firing(self, is_firing):
+        self.is_firing = is_firing
+        if is_firing:
+            self.set_image(IMAGE_PLAYER_FIRING)
+        else:
+            self.set_image(IMAGE_PLAYER_STANDING)
+
+    def set_image(self, image):
+        x,y = self.rect.centerx, self.rect.centery
+        self.image = image
+        self.rect = self.image.get_rect()
+        self.rect.center = (x, y)
+        
 
 class Balloon(pygame.sprite.Sprite):
       def __init__(self,
