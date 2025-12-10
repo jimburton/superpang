@@ -59,9 +59,13 @@ LABEL_FONT = pygame.font.Font(FONT_FILE_REGULAR, 30)
 BIG_FONT = pygame.font.Font(FONT_FILE_REGULAR, 48)
 MASSIVE_FONT = pygame.font.Font(FONT_FILE_BOLD, 62)
 
-# Load the background music and balloon pop sound effect.
+# Load the background music and balloon sound effects.
 pygame.mixer.music.load(os.path.join(AUDIO_PATH, "theme.ogg"))
 AUDIO_POP = pygame.mixer.Sound(os.path.join(AUDIO_PATH, "pop.ogg"))
+AUDIO_FIRE = pygame.mixer.Sound(os.path.join(AUDIO_PATH, "fire.ogg"))
+AUDIO_OW = pygame.mixer.Sound(os.path.join(AUDIO_PATH, "ow.ogg"))
+AUDIO_LEVEL = pygame.mixer.Sound(os.path.join(AUDIO_PATH, "level.ogg"))
+AUDIO_APPLAUSE = pygame.mixer.Sound(os.path.join(AUDIO_PATH, "applause.ogg"))
 
 # Miscellaneous constants.
 TOTAL_BALLOONS = 100
@@ -240,6 +244,7 @@ class SuperPang:
                         firing = True
                         self.player.firing(is_firing=firing)
                         self.fire_arrow()
+                        pygame.mixer.Sound.play(AUDIO_FIRE)
                     elif event.type == EVENT_ADD_BALLOON:
                         balloon_count += 1
                         new_level_target = int(balloon_count / 10) + 1
@@ -281,6 +286,7 @@ class SuperPang:
                 # Collision detection for player and balloons.
                 if not invincible and not (self.frozen_all or self.frozen_balloons) and not self.god_mode:
                     if pygame.sprite.spritecollideany(self.player, self.balloons):
+                        pygame.mixer.Sound.play(AUDIO_OW)
                         if lives < 2:
                             # end game
                             lives -= 1
@@ -368,6 +374,7 @@ class SuperPang:
         label_y = SCREEN_HEIGHT / 2
         surface.blit(win, (200, label_y))
         surface.blit(play_again, (200, label_y+50))
+        pygame.mixer.Sound.play(AUDIO_APPLAUSE)
         pygame.display.update()
 
     def fire_arrow(self):
@@ -465,7 +472,10 @@ class SuperPang:
                 if not b.waiting:
                     # For every type of balloon except on which is waiting,
                     # play the sound effect and remove the balloon.
-                    pygame.mixer.Sound.play(AUDIO_POP)
+                    if b.level_balloon:
+                        pygame.mixer.Sound.play(AUDIO_LEVEL)
+                    else:
+                        pygame.mixer.Sound.play(AUDIO_POP)
                     b.kill()
 
 if __name__ == '__main__':
