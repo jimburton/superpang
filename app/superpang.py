@@ -25,20 +25,20 @@ BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
 GOLD = (255, 215, 0)
 
-DISPLAYSURF = pygame.display.set_mode((SCREEN_WIDTH,SCREEN_HEIGHT))
+SURF = pygame.display.set_mode((SCREEN_WIDTH,SCREEN_HEIGHT))
 pygame.display.set_caption("SuperPang!")
 
 NUM_LIVES = 3
 IMAGE_PLAYER_LIFE = pygame.image.load(os.path.join(IMAGES_PATH, "player_life.png"))
 
 # Events.
-EVENT_ADD_BALLOON = pygame.USEREVENT+1 # Add a new balloon.
-EVENT_EXPLODE = pygame.USEREVENT+2 # Explode one level of balloons.
-EVENT_UNFREEZE = pygame.USEREVENT+3 # Unfreeze entities.
-EVENT_FRESH_BALLOON_WAIT = pygame.USEREVENT+5 # End the waiting period of new balloons.
-EVENT_PAUSE_LABEL_FLASH = pygame.USEREVENT+6 # Flash the "PAUSED" label.
-EVENT_INVINCIBILITY = pygame.USEREVENT+7 # Player can't be harmed.
-EVENT_BLINK_PLAYER = pygame.USEREVENT+8 # Flash Player icon.
+EVENT_ADD_BALLOON = pygame.event.custom_type() # Add a new balloon.
+EVENT_EXPLODE = pygame.event.custom_type() # Explode one level of balloons.
+EVENT_UNFREEZE = pygame.event.custom_type() # Unfreeze entities.
+EVENT_FRESH_BALLOON_WAIT = pygame.event.custom_type() # End the waiting period of new balloons.
+EVENT_PAUSE_LABEL_FLASH = pygame.event.custom_type() # Flash the "PAUSED" label.
+EVENT_INVINCIBILITY = pygame.event.custom_type() # Player can't be harmed.
+EVENT_BLINK_PLAYER = pygame.event.custom_type() # Flash Player icon.
 
 # Intervals between events, in ms.
 INTERVAL_FRESH_BALLOON = 20000
@@ -89,7 +89,7 @@ class SuperPang:
 
     def set_up(self):
         """Repeatable set up at the beginning of a game."""
-        px, py = SCREEN_WIDTH / 2, SCREEN_HEIGHT - 80
+        px, py = SCREEN_WIDTH / 2, STAGE_HEIGHT-28
         self.player = Player(initial_x=px, initial_y=py, min_x=0, max_x=SCREEN_WIDTH)
         self.player_group = pygame.sprite.GroupSingle(self.player)
         self.make_freezer = True # whether the next balloon should be a freezer.
@@ -110,6 +110,7 @@ class SuperPang:
         self.balloon_interval = INTERVAL_FRESH_BALLOON
         # Set the event to add the next balloon.
         pygame.time.set_timer(EVENT_ADD_BALLOON, self.balloon_interval)
+        self.popped_count = 0
 
     def fresh_balloon(self, level_balloon=False):
         """ Make a new, full-size balloon. It appears in either the upper-right or
@@ -170,6 +171,7 @@ class SuperPang:
                         added_children = True
                     b.kill()
                     pygame.mixer.Sound.play(AUDIO_POP)
+                    self.popped_count += 1
             for b in new_balloons:
                 self.balloons.add(b)
                 self.all_sprites.add(b)
@@ -211,7 +213,7 @@ class SuperPang:
         while playing:
             # Set background image.
             bg = BACKGROUND_IMAGES[level-1]
-            DISPLAYSURF.blit(bg, (0, 0))
+            SURF.blit(bg, (0, 0))
         
             end_of_level = False
 
@@ -290,7 +292,7 @@ class SuperPang:
                         if lives < 2:
                             # end game
                             lives -= 1
-                            self.display_game_over(DISPLAYSURF)
+                            self.display_game_over(SURF)
                             playing = False
                         else:
                             lives -= 1
@@ -303,7 +305,7 @@ class SuperPang:
                     self.collide_arrows_balloons()
                     # Player won the game.
                 if len(self.balloons) == 0 and balloon_count == TOTAL_BALLOONS:
-                    self.display_won(DISPLAYSURF)
+                    self.display_won(SURF)
                     playing = False
                     
                 new_level = int(balloon_count / 10) + 1
@@ -313,15 +315,15 @@ class SuperPang:
                 if paused_label:
                     label = MASSIVE_FONT.render("PAUSED", True, WHITE)
                     label_y = SCREEN_HEIGHT / 2
-                    DISPLAYSURF.blit(label, (250, label_y))
+                    SURF.blit(label, (250, label_y))
 
             # Draw all sprites.
-            self.balloons.draw(DISPLAYSURF)
-            self.arrows.draw(DISPLAYSURF)
+            self.balloons.draw(SURF)
+            self.arrows.draw(SURF)
             if player_visible:
-                self.player_group.draw(DISPLAYSURF)
+                self.player_group.draw(SURF)
 
-            self.draw_hud(DISPLAYSURF, level, lives)
+            self.draw_hud(SURF, level, lives)
             
             # Finalize the frame.
             pygame.display.update()
@@ -396,18 +398,42 @@ class SuperPang:
                                      STAGE_HEIGHT,
                                      SCREEN_WIDTH,
                                      SCREEN_HEIGHT-STAGE_HEIGHT))
+        # text
         rh_pos = (SCREEN_WIDTH-200, STAGE_HEIGHT+5)
         lh_pos = (10, STAGE_HEIGHT+10)
         level_text = LABEL_FONT.render(f"Level: {level}", True, BLACK)
         life_text = LABEL_FONT.render("Lives:", True, BLACK)
         surface.blit(level_text, lh_pos)
         surface.blit(life_text, rh_pos)
+        # life icons
         life_x, life_y = rh_pos
         life_x += 80
         for _ in range(lives):
             surface.blit(IMAGE_PLAYER_LIFE, (life_x, life_y))
             life_x += 40
-                
+        # progress bar
+        bar_w = 300
+        l,t,h = 230,STAGE_HEIGHT+9,25
+        popped_in_level = self.popped_count % 280
+        progress_w = int((popped_in_level/280)*bar_w)
+        rect_bg = pygame.Rect(l, t, bar_w, h)
+        rect_fg = pygame.Rect(l, t, progress_w, h)
+        pygame.draw.rect(surface=surface,
+                         rect=rect_bg,
+                         color=BLACK,
+                         width=1,
+                         border_radius=5)
+        if progress_w > 294:
+            right_rad = 5
+        else:
+            right_rad = 0
+        pygame.draw.rect(surface=surface,
+                         rect=rect_fg,
+                         color=RED,
+                         border_top_left_radius=5,
+                         border_top_right_radius=right_rad,
+                         border_bottom_left_radius=5,
+                         border_bottom_right_radius=right_rad)      
     
     def collide_player(self, surface) -> bool:
         """
@@ -477,6 +503,7 @@ class SuperPang:
                     else:
                         pygame.mixer.Sound.play(AUDIO_POP)
                     b.kill()
+                    self.popped_count += 1
 
 if __name__ == '__main__':
     god_mode = False
