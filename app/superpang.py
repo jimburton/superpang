@@ -25,35 +25,39 @@ BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
 GOLD = (255, 215, 0)
 
-
-
 DISPLAYSURF = pygame.display.set_mode((SCREEN_WIDTH,SCREEN_HEIGHT))
 pygame.display.set_caption("SuperPang!")
+
+NUM_LIVES = 3
+IMAGE_PLAYER_LIFE = pygame.image.load(os.path.join(IMAGES_PATH, "player_life.png"))
 
 # Events.
 EVENT_ADD_BALLOON = pygame.USEREVENT+1 # Add a new balloon.
 EVENT_EXPLODE = pygame.USEREVENT+2 # Explode one level of balloons.
-EVENT_UNFREEZE = pygame.USEREVENT+3 # Unfreeze the balloons.
+EVENT_UNFREEZE = pygame.USEREVENT+3 # Unfreeze entities.
 EVENT_FRESH_BALLOON_WAIT = pygame.USEREVENT+5 # End the waiting period of new balloons.
 EVENT_PAUSE_LABEL_FLASH = pygame.USEREVENT+6 # Flash the "PAUSED" label.
+EVENT_INVINCIBILITY = pygame.USEREVENT+7 # Player can't be harmed.
+EVENT_BLINK_PLAYER = pygame.USEREVENT+8 # Flash Player icon.
 
 # Intervals between events, in ms.
-INTERVAL_FRESH_BALLOON = 10000
+INTERVAL_FRESH_BALLOON = 20000
 INTERVAL_FRESH_BALLOON_WAIT = 2000 
 INTERVAL_FREEZE_CLOCK = 4000
 INTERVAL_FREEZE_BALLOON = 2000
+INTERVAL_FREEZE_LOST_LIFE = 1500
 INTERVAL_EXPLODE = 500
 INTERVAL_PAUSE_LABEL_FLASH = 800
+INTERVAL_INVINCIBILITY = 5000
+INTERVAL_BLINK_PLAYER = 300
 
 # Labels for the HUD.
 FONTS_PATH = os.path.join(ASSETS_PATH, "fonts")
 FONT_FILE_REGULAR = os.path.join(FONTS_PATH, "BitcountPropSingle-Regular.ttf")
 FONT_FILE_BOLD = os.path.join(FONTS_PATH, "BitcountPropSingle-Bold.ttf")
 LABEL_FONT = pygame.font.Font(FONT_FILE_REGULAR, 30)
-LEVEL_TEXT_POS = (10, STAGE_HEIGHT+10)
 BIG_FONT = pygame.font.Font(FONT_FILE_REGULAR, 48)
 MASSIVE_FONT = pygame.font.Font(FONT_FILE_BOLD, 62)
-BALLOON_COUNT_TEXT_POS = (SCREEN_WIDTH-200, STAGE_HEIGHT+10)
 
 # Load the background music and balloon pop sound effect.
 pygame.mixer.music.load(os.path.join(AUDIO_PATH, "theme.ogg"))
@@ -96,7 +100,8 @@ class SuperPang:
         self.all_sprites.add(b1)
         self.all_sprites.add(self.player)
         self.is_firing = False # Whether the player is currently firing.
-        self.frozen = False # Whether the balloons are frozen. 
+        self.frozen_balloons = False # Whether the balloons are frozen.
+        self.frozen_all = False # Whether all sprites are frozen. 
         # ten seconds from first balloon to second one, the interval decreases after that.
         self.balloon_interval = INTERVAL_FRESH_BALLOON
         # Set the event to add the next balloon.
@@ -125,7 +130,7 @@ class SuperPang:
 
     def explode_balloons(self):
         """ Freeze balloons and explode them on a timer."""
-        self.frozen = True
+        self.frozen_balloons = True
         pygame.time.set_timer(EVENT_EXPLODE, INTERVAL_EXPLODE)
 
     def explode_one_level(self):
@@ -166,17 +171,22 @@ class SuperPang:
                 self.all_sprites.add(b)
             if not added_children:
                 # There may still be balloons in the group but they are waiting.
-                self.frozen = False
+                self.frozen_balloons = False
                 pygame.time.set_timer(EVENT_EXPLODE, 0)
         else:
             # We have popped all of the balloons, unfreeze and clear
             # the timer. 
-            self.frozen = False
+            self.frozen_balloons = False
             pygame.time.set_timer(EVENT_EXPLODE, 0)
 
-    def freeze(self, interval):
+    def freeze_balloons(self, interval):
         """ Freeze balloons."""
-        self.frozen = True
+        self.frozen_balloons = True
+        pygame.time.set_timer(EVENT_UNFREEZE, interval)
+
+    def freeze_all(self, interval):
+        """ Freeze all entities."""
+        self.frozen_all = True
         pygame.time.set_timer(EVENT_UNFREEZE, interval)
 
     def play(self):
@@ -190,19 +200,14 @@ class SuperPang:
         playing = True
         paused = False
         paused_label = True
+        lives = NUM_LIVES
+        invincible = False
+        player_visible = True
     
         while playing:
             # Set background image.
             bg = BACKGROUND_IMAGES[level-1]
             DISPLAYSURF.blit(bg, (0, 0))
-        
-            # Draw the ground.
-            pygame.draw.rect(DISPLAYSURF,
-                             WHITE,
-                             pygame.Rect(0,
-                                         STAGE_HEIGHT,
-                                         SCREEN_WIDTH,
-                                         SCREEN_HEIGHT-STAGE_HEIGHT))
         
             end_of_level = False
 
@@ -253,43 +258,51 @@ class SuperPang:
                     elif event.type == EVENT_EXPLODE:
                         self.explode_one_level()
                     elif event.type == EVENT_UNFREEZE:
-                        self.frozen = False
+                        self.frozen_balloons = False
+                        if self.frozen_all:
+                            # player lost a life, make them invincible for a time
+                            invincible = True
+                            pygame.time.set_timer(EVENT_INVINCIBILITY, INTERVAL_INVINCIBILITY)
+                            self.frozen_all = False
                     elif event.type == EVENT_FRESH_BALLOON_WAIT:
                         # Allow new balloons to start moving and be popped.
                         for b in self.balloons:
                             b.waiting = False
+                    elif event.type == EVENT_INVINCIBILITY:
+                        invincible = False
+                        player_visible = True
+                        pygame.time.set_timer(EVENT_INVINCIBILITY, 0)
+                        pygame.time.set_timer(EVENT_BLINK_PLAYER, 0)
+                    elif event.type == EVENT_BLINK_PLAYER:
+                        player_visible = not player_visible
 
-                if not self.frozen:
-                    # Move the sprites.
-                    for entity in self.all_sprites:
-                        # entity is not a waiting balloon
-                        if not hasattr(entity, 'waiting') or not entity.waiting:
-                            entity.move()
-                else:
-                    # Move the player and arrows only.
-                    self.player.move()
-                    for arrow in self.arrows:
-                        arrow.move()
+                self.move_sprites()
 
                 # Collision detection for player and balloons.
-                if not self.frozen and not self.god_mode:
-                    playing = self.collide_player(DISPLAYSURF)
+                if not invincible and not (self.frozen_all or self.frozen_balloons) and not self.god_mode:
+                    if pygame.sprite.spritecollideany(self.player, self.balloons):
+                        if lives < 2:
+                            # end game
+                            lives -= 1
+                            self.display_game_over(DISPLAYSURF)
+                            playing = False
+                        else:
+                            lives -= 1
+                            self.frozen_all = True
+                            pygame.time.set_timer(EVENT_UNFREEZE, INTERVAL_FREEZE_LOST_LIFE)
+                            pygame.time.set_timer(EVENT_BLINK_PLAYER, INTERVAL_BLINK_PLAYER)
 
-                # Collision detection for arrows and balloons.
-                self.collide_arrows_balloons()
-                # Player won the game.
+                if not self.frozen_all:
+                    # Collision detection for arrows and balloons.
+                    self.collide_arrows_balloons()
+                    # Player won the game.
                 if len(self.balloons) == 0 and balloon_count == TOTAL_BALLOONS:
                     self.display_won(DISPLAYSURF)
                     playing = False
                     
-                # Draw labels.
                 new_level = int(balloon_count / 10) + 1
                 if new_level > level and new_level <= 10:
                     level = new_level
-                balloon_count_text = LABEL_FONT.render(f"Balloons: {balloon_count}", True, BLACK)
-                level_text = LABEL_FONT.render(f"Level: {level}", True, BLACK)
-                DISPLAYSURF.blit(level_text, LEVEL_TEXT_POS)
-                DISPLAYSURF.blit(balloon_count_text, BALLOON_COUNT_TEXT_POS)
             else: # is paused
                 if paused_label:
                     label = MASSIVE_FONT.render("PAUSED", True, WHITE)
@@ -299,7 +312,10 @@ class SuperPang:
             # Draw all sprites.
             self.balloons.draw(DISPLAYSURF)
             self.arrows.draw(DISPLAYSURF)
-            self.player_group.draw(DISPLAYSURF)
+            if player_visible:
+                self.player_group.draw(DISPLAYSURF)
+
+            self.draw_hud(DISPLAYSURF, level, lives)
             
             # Finalize the frame.
             pygame.display.update()
@@ -317,6 +333,30 @@ class SuperPang:
         # If we didn't quit, start a new game
         self.set_up()
         self.play()
+
+    def move_sprites(self):
+        """ Move the sprites. """
+        if not self.frozen_all and not self.frozen_balloons:
+            # Move the sprites.
+            for entity in self.all_sprites:
+                # entity is not a waiting balloon
+                if not hasattr(entity, 'waiting') or not entity.waiting:
+                    entity.move()
+        elif not self.frozen_all:
+            # Move the player and arrows only.
+            self.player.move()
+            for arrow in self.arrows:
+                arrow.move()
+
+    def display_game_over(self, surface):
+        """ Display game over screen. """
+        surface.fill(RED)
+        game_over = BIG_FONT.render("GAME OVER!", True, BLACK)
+        play_again = BIG_FONT.render("Press space to play again", True, BLACK)
+        label_y = SCREEN_HEIGHT / 3
+        surface.blit(game_over, (100, label_y))
+        surface.blit(play_again, (100, label_y+50))
+        pygame.display.update()
 
     def display_won(self, surface):
         """
@@ -339,6 +379,28 @@ class SuperPang:
         a = Arrow(initial_x=a_x, initial_y=a_y)
         self.arrows.add(a)
         self.all_sprites.add(a)
+
+    def draw_hud(self, surface, level, lives):
+        """ Draw the HUD."""
+        # Draw the ground.
+        pygame.draw.rect(surface,
+                         WHITE,
+                         pygame.Rect(0,
+                                     STAGE_HEIGHT,
+                                     SCREEN_WIDTH,
+                                     SCREEN_HEIGHT-STAGE_HEIGHT))
+        rh_pos = (SCREEN_WIDTH-200, STAGE_HEIGHT+5)
+        lh_pos = (10, STAGE_HEIGHT+10)
+        level_text = LABEL_FONT.render(f"Level: {level}", True, BLACK)
+        life_text = LABEL_FONT.render("Lives:", True, BLACK)
+        surface.blit(level_text, lh_pos)
+        surface.blit(life_text, rh_pos)
+        life_x, life_y = rh_pos
+        life_x += 80
+        for _ in range(lives):
+            surface.blit(IMAGE_PLAYER_LIFE, (life_x, life_y))
+            life_x += 40
+                
     
     def collide_player(self, surface) -> bool:
         """
@@ -374,7 +436,7 @@ class SuperPang:
                     if b.star:
                         self.explode_balloons()
                     else:
-                        self.freeze(INTERVAL_FREEZE_CLOCK)
+                        self.freeze_balloons(INTERVAL_FREEZE_CLOCK)
                 elif b.size > 1 and not b.waiting:
                     # Replace the balloon with two smaller ones.
                     vy = 0 if b.rect.top < 20 else -INITIAL_SPEED_Y / 2
@@ -399,7 +461,7 @@ class SuperPang:
                     self.all_sprites.add(c1, c2)
                 elif b.size == 1 and b.freezer:
                     # The balloon is a size 1 freezer.
-                    self.freeze(INTERVAL_FREEZE_BALLOON)
+                    self.freeze_balloons(INTERVAL_FREEZE_BALLOON)
                 if not b.waiting:
                     # For every type of balloon except on which is waiting,
                     # play the sound effect and remove the balloon.
